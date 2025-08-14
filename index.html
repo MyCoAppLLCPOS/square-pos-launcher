@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Square POS Launcher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="content" class="p-8 bg-white rounded-lg shadow-lg max-w-sm w-full text-center">
+        <!-- Content will be dynamically updated by JavaScript -->
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const transactionId = urlParams.get('com.squareup.pos.SERVER_TRANSACTION_ID');
+            const errorMessage = urlParams.get('com.squareup.pos.RESULT_ERROR_MESSAGE');
+            const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
+            const amount = urlParams.get('amount');
+            const note = urlParams.get('note');
+
+            const contentDiv = document.getElementById('content');
+
+            // --- Part 1: Handle the callback from Square POS app ---
+            if (transactionId) {
+                // Payment was successful.
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-green-600">Payment Successful!</h1>
+                    <p class="text-gray-600 mb-2">Transaction ID:</p>
+                    <p class="font-mono text-sm text-gray-700 break-all">${transactionId}</p>
+                    <p class="mt-4 text-gray-600">You can now return to your AppSheet app to view the updated status.</p>
+                `;
+            } else if (errorMessage) {
+                // Payment failed.
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-red-600">Payment Failed</h1>
+                    <p class="text-gray-600 mb-2">Error: ${errorMessage}</p>
+                    <p class="text-gray-600 mb-2">Error Code: ${errorCode}</p>
+                `;
+            } 
+            // --- Part 2: Trigger the Square POS app if amount parameter exists ---
+            else if (amount) {
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-gray-800">Processing Payment...</h1>
+                    <p class="text-gray-600 mb-6">Please wait while we connect to the Square Point of Sale app.</p>
+                    <div id="loading" class="flex justify-center items-center">
+                        <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                `;
+                // Replace with your actual Square credentials
+                const SQUARE_APP_ID = "YOUR_SQUARE_APPLICATION_ID";
+                const SQUARE_LOCATION_ID = "YOUR_SQUARE_LOCATION_ID";
+                const CALLBACK_URL = "YOUR_SQUARE_CALLBACK_URL";
+
+                // Function to check the user's OS
+                function getMobileOS() {
+                    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+                    if (/android/i.test(userAgent)) {
+                        return "Android";
+                    }
+                    if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                        return "iOS";
+                    }
+                    return "unknown";
+                }
+
+                const os = getMobileOS();
+                let posUrl = '';
+
+                if (os === 'iOS') {
+                    const transactionData = {
+                        'amount_money': {
+                            'amount': parseInt(amount),
+                            'currency_code': 'USD'
+                        },
+                        'callback_url': CALLBACK_URL,
+                        'client_id': SQUARE_APP_ID,
+                        'version': '1.3',
+                        'notes': note
+                    };
+                    const jsonString = JSON.stringify(transactionData);
+                    const encodedData = encodeURIComponent(jsonString);
+                    posUrl = `square-commerce-v1://payment/create?data=${encodedData}`;
+
+                } else if (os === 'Android') {
+                    const fallbackUrl = `https://play.google.com/store/apps/details?id=com.squareup`;
+                    posUrl = `intent:#Intent;action=com.squareup.pos.action.CHARGE;package=com.squareup;S.com.squareup.pos.CLIENT_ID=${SQUARE_APP_ID};S.com.squareup.pos.API_VERSION=v2.0;S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(CALLBACK_URL)};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};S.com.squareup.pos.TENDER_CARD=1;i.com.squareup.pos.TOTAL_AMOUNT_MONEY=${parseInt(amount)};S.com.squareup.pos.TOTAL_AMOUNT_CURRENCY_CODE=USD;S.com.squareup.pos.NOTE=${encodeURIComponent(note)};end`;
+                } else {
+                     contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">This feature is only available on iOS and Android mobile devices.</p>';
+                    return;
+                }
+
+                console.log("Redirecting to Square POS app with URL: " + posUrl);
+                window.location.replace(posUrl);
+            } else {
+                // If no parameters are present, it's just the plain page.
+                contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-gray-800">Ready to Launch</h1><p class="text-gray-600">This page is a payment gateway. Please use it from your AppSheet app.</p>';
+            }
+        });
+    </script>
+</body>
+</html>

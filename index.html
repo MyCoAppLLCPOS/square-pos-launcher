@@ -13,7 +13,14 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div id="content" class="p-8 bg-white rounded-lg shadow-lg max-w-lg w-full text-center">
-        <!-- Content will be dynamically updated by JavaScript -->
+        <!-- A simple loading indicator while the script runs -->
+        <div class="flex flex-col items-center justify-center">
+            <svg class="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-gray-600">Launching Square App...</p>
+        </div>
     </div>
 
     <script>
@@ -25,7 +32,7 @@
             const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
             const contentDiv = document.getElementById('content');
 
-            // --- Part 1: Handle the callback from Square POS app ---
+            // --- Handle the callback from Square POS app ---
             if (transactionId) {
                 // Payment was successful.
                 contentDiv.innerHTML = `
@@ -43,7 +50,7 @@
                     <p class="text-gray-600 mt-4">Please try again or contact support.</p>
                 `;
             } 
-            // --- Part 2: Trigger the Square POS app if amount parameter exists ---
+            // --- Trigger the Square POS app if amount parameter exists ---
             else {
                 const amountRaw = urlParams.get('amount');
                 const noteRaw = urlParams.get('note');
@@ -82,7 +89,7 @@
                             'callback_url': CALLBACK_URL,
                             'client_id': SQUARE_APP_ID,
                             'version': '1.3',
-                            'notes': noteRaw, // Note is not URL encoded for iOS
+                            'notes': noteRaw,
                             'location_id': SQUARE_LOCATION_ID
                         };
                         const jsonString = JSON.stringify(transactionData);
@@ -96,23 +103,9 @@
                         contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">This feature is only available on iOS and Android mobile devices.</p>';
                         return;
                     }
-
-                    contentDiv.innerHTML = `
-                        <h1 class="text-2xl font-bold mb-4 text-gray-800">Ready to Launch Square App</h1>
-                        <p class="text-gray-600 mb-6">Click the button below to open the Square POS app and process the payment.</p>
-                        <a href="${posUrl}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300">
-                            Launch Square POS
-                        </a>
-                        <div class="mt-8 text-left">
-                            <p class="text-gray-600 font-semibold">Debug Information:</p>
-                            <p class="font-mono text-sm text-gray-500">Amount Received: <span class="text-gray-800">${amountRaw}</span></p>
-                            <p class="font-mono text-sm text-gray-500">Note Received: <span class="text-gray-800">${noteRaw}</span></p>
-                            <p class="font-mono text-sm text-gray-500">Amount in Cents: <span class="text-gray-800">${amountInCents}</span></p>
-                            <p class="font-mono text-sm text-gray-500">Operating System: <span class="text-gray-800">${os}</span></p>
-                            <p class="text-gray-600 font-semibold mt-4">Generated Deep Link URL:</p>
-                            <p class="font-mono text-xs text-gray-500 break-all">${posUrl}</p>
-                        </div>
-                    `;
+                    
+                    // Immediately redirect to the generated deep link URL
+                    window.location.replace(posUrl);
 
                 } else {
                     contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">Missing "amount" or "note" parameter in the URL. Please use this link from your AppSheet app after saving the transaction.</p>';

@@ -24,7 +24,6 @@
             const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
             const amount = urlParams.get('amount');
             const note = urlParams.get('note');
-
             const contentDiv = document.getElementById('content');
 
             // --- Part 1: Handle the callback from Square POS app ---
@@ -58,11 +57,10 @@
                 `;
                 // Your Square credentials
                 const SQUARE_APP_ID = "sq0idp-CprTqUDpijlIs21eQSpeJQ";
+                // This location ID is now required on both platforms. I've taken it from your screenshot.
                 const SQUARE_LOCATION_ID = "L4DPK1HDFRXMK";
-                // This is the URL that Square will redirect to after the payment.
                 const CALLBACK_URL = "https://mycoappllcpos.github.io/square-pos-launcher/";
 
-                // Function to check the user's OS
                 function getMobileOS() {
                     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
                     if (/android/i.test(userAgent)) {
@@ -76,7 +74,8 @@
 
                 const os = getMobileOS();
                 let posUrl = '';
-
+                
+                // Construct the URL differently for iOS and Android
                 if (os === 'iOS') {
                     const transactionData = {
                         'amount_money': {
@@ -86,7 +85,8 @@
                         'callback_url': CALLBACK_URL,
                         'client_id': SQUARE_APP_ID,
                         'version': '1.3',
-                        'notes': note
+                        'notes': note,
+                        'location_id': SQUARE_LOCATION_ID // Now a required field
                     };
                     const jsonString = JSON.stringify(transactionData);
                     const encodedData = encodeURIComponent(jsonString);
@@ -94,7 +94,7 @@
 
                 } else if (os === 'Android') {
                     const fallbackUrl = `https://play.google.com/store/apps/details?id=com.squareup`;
-                    posUrl = `intent:#Intent;action=com.squareup.pos.action.CHARGE;package=com.squareup;S.com.squareup.pos.CLIENT_ID=${SQUARE_APP_ID};S.com.squareup.pos.API_VERSION=v2.0;S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(CALLBACK_URL)};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};S.com.squareup.pos.TENDER_CARD=1;i.com.squareup.pos.TOTAL_AMOUNT_MONEY=${parseInt(amount)};S.com.squareup.pos.TOTAL_AMOUNT_CURRENCY_CODE=USD;S.com.squareup.pos.NOTE=${encodeURIComponent(note)};end`;
+                    posUrl = `intent:#Intent;action=com.squareup.pos.action.CHARGE;package=com.squareup;S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(CALLBACK_URL)};S.com.squareup.pos.CLIENT_ID=${SQUARE_APP_ID};S.com.squareup.pos.API_VERSION=v2.0;i.com.squareup.pos.TOTAL_AMOUNT=${parseInt(amount)};S.com.squareup.pos.CURRENCY_CODE=USD;S.com.squareup.pos.NOTE=${encodeURIComponent(note)};S.com.squareup.pos.LOCATION_ID=${SQUARE_LOCATION_ID};end`;
                 } else {
                      contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">This feature is only available on iOS and Android mobile devices.</p>';
                     return;
@@ -103,7 +103,6 @@
                 console.log("Redirecting to Square POS app with URL: " + posUrl);
                 window.location.replace(posUrl);
             } else {
-                // If no parameters are present, it's just the plain page.
                 contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-gray-800">Ready to Launch</h1><p class="text-gray-600">This page is a payment gateway. Please use it from your AppSheet app.</p>';
             }
         });

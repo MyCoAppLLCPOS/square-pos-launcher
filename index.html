@@ -18,7 +18,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
+            const urlSearchString = window.location.search;
+            const urlParams = new URLSearchParams(urlSearchString);
             const transactionId = urlParams.get('com.squareup.pos.SERVER_TRANSACTION_ID');
             const errorMessage = urlParams.get('com.squareup.pos.RESULT_ERROR_MESSAGE');
             const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');

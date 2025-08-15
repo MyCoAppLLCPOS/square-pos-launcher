@@ -3,173 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Square Payment Link Generator</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Square POS Launcher</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 1rem;
         }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-
-    <div class="bg-white p-8 rounded-xl shadow-2xl max-w-lg w-full text-center border border-gray-200">
-        <div class="flex justify-center mb-4">
-            <!-- Square logo as an inline SVG for aesthetics -->
-            <svg class="w-16 h-16 text-black" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21 21H3V3h18v18zM12 11h-2v2H9v-2H7v2H5v-2h2v-2h2v2h1v-1h2v-2h-2V7h-2v2H9v2h-2v2H5v-2h-2v-2h2V9h2V7h-2V5h2V3h2v2h2v2h-2v2h-1v1h-1v1z"/>
-            </svg>
-        </div>
-
-        <h1 class="text-3xl font-bold mb-4 text-gray-800">Payment Link Generator</h1>
-        <p class="text-gray-600 mb-6">
-            This app will generate a Square deep link based on the order ID provided from AppSheet.
-        </p>
-
-        <div id="status-message" class="bg-blue-100 text-blue-800 p-4 rounded-lg mb-6 text-sm font-medium hidden" role="alert">
-            <p>Initializing...</p>
-        </div>
-
-        <div id="content" class="hidden">
-            <div class="flex flex-col space-y-4">
-                <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-                    <span class="font-semibold text-gray-700">Order ID:</span>
-                    <span id="order-id" class="text-gray-900 font-mono"></span>
-                </div>
-                <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-                    <span class="font-semibold text-gray-700">Amount:</span>
-                    <span id="amount" class="text-gray-900 font-mono"></span>
-                </div>
-            </div>
-
-            <button id="pay-button" class="mt-8 w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-200 shadow-md">
-                Launch Square App to Pay
-            </button>
-        </div>
-        
-        <!-- Error Message Box (will be shown if something goes wrong) -->
-        <div id="error-message" class="bg-red-100 text-red-800 p-4 rounded-lg mt-6 hidden" role="alert">
-            <p id="error-text" class="font-medium"></p>
-        </div>
+    <div id="content" class="p-8 bg-white rounded-lg shadow-lg max-w-lg w-full text-center">
+        <!-- Content will be dynamically updated by JavaScript -->
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const statusMessage = document.getElementById('status-message');
-            const contentContainer = document.getElementById('content');
-            const errorMessage = document.getElementById('error-message');
-            const errorText = document.getElementById('error-text');
+            const urlSearchString = window.location.search;
+            const urlParams = new URLSearchParams(urlSearchString);
+            const transactionId = urlParams.get('com.squareup.pos.SERVER_TRANSACTION_ID');
+            const errorMessage = urlParams.get('com.squareup.pos.RESULT_ERROR_MESSAGE');
+            const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
+            const contentDiv = document.getElementById('content');
 
-            // Simulate a database of orders to get the amount from the order ID.
-            // In a real application, you would make a fetch call to a backend or a Google Sheet API to get this data.
-            const dummyOrderData = {
-                'ORD-123': { amount: 1500, currency: 'USD' },
-                'ORD-456': { amount: 2550, currency: 'USD' },
-                'ORD-789': { amount: 5000, currency: 'USD' }
-            };
+            // --- Part 1: Handle the callback from Square POS app ---
+            if (transactionId) {
+                // Payment was successful.
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-green-600">Payment Successful!</h1>
+                    <p class="text-gray-600 mb-2">Transaction ID:</p>
+                    <p class="font-mono text-sm text-gray-700 break-all">${transactionId}</p>
+                    <p class="mt-4 text-gray-600">You can now return to your AppSheet app to view the updated status.</p>
+                `;
+            } else if (errorMessage) {
+                // Payment failed.
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-red-600">Payment Failed</h1>
+                    <p class="text-gray-600 mb-2">Error: ${errorMessage}</p>
+                    <p class="text-gray-600 mb-2">Error Code: ${errorCode}</p>
+                    <p class="text-gray-600 mt-4">Please try again or contact support.</p>
+                `;
+            } 
+            // --- Part 2: Trigger the Square POS app if amount parameter exists ---
+            else {
+                const amountRaw = urlParams.get('amount');
+                const noteRaw = urlParams.get('note');
 
-            /**
-             * Extracts URL parameters from the current window location.
-             * @returns {URLSearchParams} The URL parameters object.
-             */
-            const getUrlParams = () => {
-                const params = new URLSearchParams(window.location.search);
-                console.log('URL parameters:', Object.fromEntries(params.entries()));
-                return params;
-            };
+                if (amountRaw && noteRaw) {
+                    // Your Square credentials
+                    const SQUARE_APP_ID = "sq0idp-CprTqUDpijlIs21eQSpeJQ";
+                    const SQUARE_LOCATION_ID = "L4DPK1HDFRXMK";
+                    const CALLBACK_URL = "https://mycoappllcpos.github.io/square-pos-launcher/";
 
-            /**
-             * Displays an error message to the user.
-             * @param {string} message The error message to display.
-             */
-            const showError = (message) => {
-                statusMessage.classList.add('hidden');
-                contentContainer.classList.add('hidden');
-                errorMessage.classList.remove('hidden');
-                errorText.textContent = message;
-                console.error(message);
-            };
+                    // Sanitize and convert the AppSheet data
+                    const amountInCents = Math.floor(parseFloat(amountRaw) * 100);
+                    const encodedNote = encodeURIComponent(noteRaw);
 
-            /**
-             * Initializes the application by fetching the order ID from the URL.
-             */
-            const init = () => {
-                statusMessage.classList.remove('hidden');
-                statusMessage.textContent = 'Looking for order ID in URL...';
+                    function getMobileOS() {
+                        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+                        if (/android/i.test(userAgent)) {
+                            return "Android";
+                        }
+                        if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                            return "iOS";
+                        }
+                        return "unknown";
+                    }
 
-                try {
-                    const params = getUrlParams();
-                    const orderId = params.get('Order_ID');
+                    const os = getMobileOS();
+                    let posUrl = '';
+                    
+                    // Construct the URL differently for iOS and Android
+                    if (os === 'iOS') {
+                        const transactionData = {
+                            'amount_money': {
+                                'amount': amountInCents,
+                                'currency_code': 'USD'
+                            },
+                            'callback_url': CALLBACK_URL,
+                            'client_id': SQUARE_APP_ID,
+                            'version': '1.3',
+                            'notes': noteRaw, // Note is not URL encoded for iOS
+                            'location_id': SQUARE_LOCATION_ID
+                        };
+                        const jsonString = JSON.stringify(transactionData);
+                        const encodedData = encodeURIComponent(jsonString);
+                        posUrl = `square-commerce-v1://payment/create?data=${encodedData}`;
 
-                    if (!orderId) {
-                        showError('Error: No Order_ID found in the URL. Please launch from the AppSheet action.');
+                    } else if (os === 'Android') {
+                        const fallbackUrl = `https://play.google.com/store/apps/details?id=com.squareup`;
+                        posUrl = `intent:#Intent;action=com.squareup.pos.action.CHARGE;package=com.squareup;S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(CALLBACK_URL)};S.com.squareup.pos.CLIENT_ID=${SQUARE_APP_ID};S.com.squareup.pos.API_VERSION=v2.0;i.com.squareup.pos.TOTAL_AMOUNT=${amountInCents};S.com.squareup.pos.CURRENCY_CODE=USD;S.com.squareup.pos.NOTE=${encodedNote};S.com.squareup.pos.LOCATION_ID=${SQUARE_LOCATION_ID};end`;
+                    } else {
+                        contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">This feature is only available on iOS and Android mobile devices.</p>';
                         return;
                     }
 
-                    statusMessage.textContent = `Found Order ID: ${orderId}`;
-                    console.log(`Order ID is: ${orderId}`);
+                    contentDiv.innerHTML = `
+                        <h1 class="text-2xl font-bold mb-4 text-gray-800">Ready to Launch Square App</h1>
+                        <p class="text-gray-600 mb-6">Click the button below to open the Square POS app and process the payment.</p>
+                        <a href="${posUrl}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300">
+                            Launch Square POS
+                        </a>
+                        <div class="mt-8 text-left">
+                            <p class="text-gray-600 font-semibold">Debug Information:</p>
+                            <p class="font-mono text-sm text-gray-500">Amount Received: <span class="text-gray-800">${amountRaw}</span></p>
+                            <p class="font-mono text-sm text-gray-500">Note Received: <span class="text-gray-800">${noteRaw}</span></p>
+                            <p class="font-mono text-sm text-gray-500">Amount in Cents: <span class="text-gray-800">${amountInCents}</span></p>
+                            <p class="font-mono text-sm text-gray-500">Operating System: <span class="text-gray-800">${os}</span></p>
+                            <p class="text-gray-600 font-semibold mt-4">Generated Deep Link URL:</p>
+                            <p class="font-mono text-xs text-gray-500 break-all">${posUrl}</p>
+                        </div>
+                    `;
 
-                    const order = dummyOrderData[orderId];
-                    if (!order) {
-                        showError(`Error: Order with ID "${orderId}" not found. Please check AppSheet data.`);
-                        return;
-                    }
-
-                    document.getElementById('order-id').textContent = orderId;
-                    document.getElementById('amount').textContent = `$${(order.amount / 100).toFixed(2)} USD`;
-                    
-                    const paymentLink = createPaymentLink(order.amount, order.currency, orderId);
-                    
-                    // Attach the event listener to the button
-                    document.getElementById('pay-button').addEventListener('click', () => {
-                        window.location.href = paymentLink;
-                    });
-                    
-                    statusMessage.classList.add('hidden');
-                    contentContainer.classList.remove('hidden');
-                    console.log('Payment link successfully created. Waiting for user click.');
-
-                } catch (e) {
-                    showError(`An unexpected error occurred: ${e.message}`);
+                } else {
+                    contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">Missing "amount" or "note" parameter in the URL. Please use this link from your AppSheet app after saving the transaction.</p>';
                 }
-            };
-
-            /**
-             * Creates the Square deep link URL.
-             * @param {number} amount The transaction amount in cents.
-             * @param {string} currency The currency code (e.g., 'USD').
-             * @param {string} notes The notes for the transaction (Order ID).
-             * @returns {string} The complete deep link URL.
-             */
-            const createPaymentLink = (amount, currency, notes) => {
-                const dataPayload = {
-                    'amount_money': {
-                        'amount': amount,
-                        'currency': currency
-                    },
-                    'notes': notes
-                };
-                // JSON.stringify converts the object to a string.
-                const jsonString = JSON.stringify(dataPayload);
-                // encodeURIComponent makes the JSON string safe for use in a URL.
-                const encodedData = encodeURIComponent(jsonString);
-                
-                // Construct the final URL
-                const paymentLink = `square-commerce-v1://payment?data=${encodedData}`;
-                
-                console.log('Generated deep link:', paymentLink);
-                return paymentLink;
-            };
-
-            // Start the application
-            init();
+            }
         });
     </script>
 </body>

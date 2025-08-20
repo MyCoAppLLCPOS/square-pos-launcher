@@ -1,133 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Square POS Launcher</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f3f4f6;
-            text-align: center;
-            padding: 1rem;
-        }
-        .container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-        }
-    </style>
-</head>
-<body>
-    <div id="content" class="container">
-        <div class="flex flex-col items-center justify-center">
-            <svg class="animate-spin h-10 w-10 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="mt-4 text-gray-600">Processing...</p>
-        </div>
-    </div>
+// --- Part 1: Handle the callback from Square POS app after a payment ---
+            const transactionId = urlParams.get('com.squareup.pos.SERVER_TRANSACTION_ID');
+            const errorMessage = urlParams.get('com.squareup.pos.RESULT_ERROR_MESSAGE');
+            const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
+            // NEW: Get the AppSheet row ID from the URL
+            const appsheetRowId = urlParams.get('appsheet_row_id'); 
+            const contentDiv = document.getElementById('content');
+            const APPSHEET_APP_ID = "YOUR_APPSHEET_APP_ID"; // IMPORTANT: Replace with your actual App ID
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const urlSearchString = window.location.search;
-            const urlParams = new URLSearchParams(urlSearchString);
-            const transactionId = urlParams.get('com.squareup.pos.SERVER_TRANSACTION_ID');
-            const errorMessage = urlParams.get('com.squareup.pos.RESULT_ERROR_MESSAGE');
-            const errorCode = urlParams.get('com.squareup.pos.RESULT_ERROR_CODE');
-            const contentDiv = document.getElementById('content');
+            if (transactionId) {
+                // Payment was successful.
+                let redirectLink = "";
+                if (appsheetRowId) {
+                    // Construct the deep link back to the specific row in AppSheet
+                    redirectLink = `https://www.appsheet.com/start/${APPSHEET_APP_ID}#view=Transactions_Detail&row=${appsheetRowId}`;
+                }
 
-            // --- Part 1: Handle the callback from Square POS app after a payment ---
-            if (transactionId) {
-                // Payment was successful.
-                contentDiv.innerHTML = `
-                    <h1 class="text-2xl font-bold mb-4 text-green-600">Payment Successful!</h1>
-                    <p class="text-gray-600 mb-2">Transaction ID:</p>
-                    <p class="font-mono text-sm text-gray-700 break-all">${transactionId}</p>
-                    <p class="mt-4 text-gray-600">You can now return to your AppSheet app.</p>
-                `;
-            } else if (errorMessage) {
-                // Payment failed.
-                contentDiv.innerHTML = `
-                    <h1 class="text-2xl font-bold mb-4 text-red-600">Payment Failed</h1>
-                    <p class="text-gray-600 mb-2">Error: ${errorMessage}</p>
-                    <p class="text-gray-600 mb-2">Error Code: ${errorCode}</p>
-                    <p class="text-gray-600 mt-4">Please try again or contact support.</p>
-                `;
-            }
-            // --- Part 2: Trigger the Square POS app if amount parameter exists ---
-            else {
-                const amountRaw = urlParams.get('amount');
-                const noteRaw = urlParams.get('customer_note'); // CHANGE: Updated to use 'customer_note'
+                contentDiv.innerHTML = `
+                    <h1 class="text-2xl font-bold mb-4 text-green-600">Payment Successful!</h1>
+                    <p class="text-gray-600 mb-2">Transaction ID:</p>
+                    <p class="font-mono text-sm text-gray-700 break-all">${transactionId}</p>
+                    <p class="mt-4 text-gray-600">You can now return to your AppSheet app.</p>
+                    ${redirectLink ? `<a href="${redirectLink}" class="mt-4 inline-block bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">Return to AppSheet</a>` : ''}
+                `;
+            } else if (errorMessage) {
+                // Payment failed.
+                // ... (no changes needed here)
+            } else {
+                const amountRaw = urlParams.get('amount');
+                const noteRaw = urlParams.get('customer_note');
+                // NEW: Get the AppSheet row ID for the initial launch
+                const initialAppsheetRowId = urlParams.get('appsheet_row_id'); 
 
-                if (!amountRaw || !noteRaw) {
-                    contentDiv.innerHTML = `
-                        <h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1>
-                        <p class="text-gray-600">Missing "amount" or "customer_note" parameter in the URL. Please verify your AppSheet action formula is correct.</p>
-                    `;
-                    return;
-                }
-
-                // Your Square credentials
-                const SQUARE_APP_ID = "sq0idp-CprTqUDpijlIs21eQSpeJQ";
-                const SQUARE_LOCATION_ID = "L4DPK1HDFRXMK";
-                const CALLBACK_URL = "https://mycoappllcpos.github.io/square-pos-launcher/";
-
-                // Sanitize and convert the AppSheet data
-                const amountInCents = Math.floor(parseFloat(amountRaw) * 100);
-                const encodedNote = encodeURIComponent(noteRaw);
-
-                function getMobileOS() {
-                    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-                    if (/android/i.test(userAgent)) { return "Android"; }
-                    if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) { return "iOS"; }
-                    return "unknown";
-                }
-
-                const os = getMobileOS();
-                let posUrl = '';
-
-                // Construct the URL differently for iOS and Android
-                if (os === 'iOS') {
-                    const transactionData = {
-                        'amount_money': { 'amount': amountInCents, 'currency_code': 'USD' },
-                        'callback_url': CALLBACK_URL,
-                        'client_id': SQUARE_APP_ID,
-                        'version': '1.3',
-                        'notes': noteRaw,
-                        'location_id': SQUARE_LOCATION_ID
-                    };
-                    const jsonString = JSON.stringify(transactionData);
-                    const encodedData = encodeURIComponent(jsonString);
-                    posUrl = `square-commerce-v1://payment/create?data=${encodedData}`;
-                } else if (os === 'Android') {
-                    const fallbackUrl = `https://play.google.com/store/apps/details?id=com.squareup`;
-                    posUrl = `intent:#Intent;action=com.squareup.pos.action.CHARGE;package=com.squareup;S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(CALLBACK_URL)};S.com.squareup.pos.CLIENT_ID=${SQUARE_APP_ID};S.com.squareup.pos.API_VERSION=v2.0;i.com.squareup.pos.TOTAL_AMOUNT=${amountInCents};S.com.squareup.pos.CURRENCY_CODE=USD;S.com.squareup.pos.CUSTOMER_NOTE=${encodedNote};S.com.squareup.pos.LOCATION_ID=${SQUARE_LOCATION_ID};end`;
-                    // CHANGE: Updated parameter from S.com.squareup.pos.NOTE to S.com.squareup.pos.CUSTOMER_NOTE
-                } else {
-                    contentDiv.innerHTML = '<h1 class="text-2xl font-bold mb-4 text-red-600">Error</h1><p class="text-gray-600">This feature is only available on iOS and Android mobile devices.</p>';
-                    return;
-                }
-
-                // Inject the button with the correct URL
-                contentDiv.innerHTML = `
-                    <h1 class="text-2xl font-bold mb-4">Ready to Launch</h1>
-                    <p class="text-gray-600 mb-6">Tap the button below to open the Square POS app.</p>
-                    <a id="launchButton" href="${posUrl}" class="inline-block bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors duration-200">
-                        Launch Square POS
-                    </a>
-                `;
-            }
-        });
-    </script>
-</body>
-</html>
+                // Your Square credentials
+                const SQUARE_APP_ID = "sq0idp-CprTqUDpijlIs21eQSpeJQ";
+                const SQUARE_LOCATION_ID = "L4DPK1HDFRXMK";
+                const CALLBACK_URL = `https://mycoappllcpos.github.io/square-pos-launcher/?appsheet_row_id=${encodeURIComponent(initialAppsheetRowId)}`;
